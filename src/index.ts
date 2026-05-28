@@ -1,13 +1,13 @@
 import type { AstroIntegration } from 'astro';
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { optionsSchema, type S3RedirectsOptions } from './config.js';
+import { planRedirects } from './plan.js';
 
 /**
  * astro-s3-redirects — materialize Astro `redirects` + directory routes as real
  * S3 301 object-redirects for AWS S3 website hosting. No edge compute.
- *
- * NOTE: the redirect-planning + apply/reconcile logic is implemented test-first
- * in M1/M2 (`src/plan.ts`, `src/reconcile.ts`). This factory wires the hooks and
- * validates config; build:done currently logs the resolved mode.
  */
 export default function s3Redirects(options: S3RedirectsOptions = {}): AstroIntegration {
   const opts = optionsSchema.parse(options);
@@ -22,12 +22,29 @@ export default function s3Redirects(options: S3RedirectsOptions = {}): AstroInte
           logger.warn('set build.format:"directory" so routes map to <route>/index.html.');
         }
       },
-      'astro:build:done': ({ logger }) => {
-        // M1: planRedirects(dir, prefix) → manifest; M2: apply/reconcile.
-        logger.info(`mode=${opts.mode} — redirect planning lands in M1 (TDD).`);
+      'astro:build:done': async ({ dir, logger }) => {
+        const distDir = fileURLToPath(dir);
+        // Manifest is prefix-less: the deploy layer applies a tenant prefix per site.
+        const plan = planRedirects(distDir, '');
+        const content = plan.filter((e) => e.kind === 'content').length;
+        const normalizers = plan.length - content;
+
+        if (opts.mode === 'manifest') {
+          const path = opts.manifestPath ?? join(process.cwd(), '.astro-s3-redirects.json');
+          writeFileSync(path, JSON.stringify(plan, null, 2));
+          logger.info(
+            `wrote ${plan.length} redirect entries (${content} content, ${normalizers} normalizers) → ${path}`,
+          );
+          return;
+        }
+
+        // apply / reconcile land in M2 (state-backed, mocked-S3 tested).
+        logger.warn(`mode="${opts.mode}" is not implemented yet (M2); no objects were written.`);
       },
     },
   };
 }
 
 export type { S3RedirectsOptions };
+export { planRedirects } from './plan.js';
+export type { RedirectPlanEntry, RedirectKind } from './plan.js';
