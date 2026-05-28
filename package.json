@@ -1,6 +1,6 @@
 {
   "name": "astro-s3-redirects",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Astro integration that turns Astro `redirects` + directory routes into real S3 301 object-redirects for AWS S3 website hosting — no Lambda@Edge, no CloudFront Functions, no extra AWS resources.",
   "type": "module",
   "license": "MIT",
