@@ -70,7 +70,7 @@ export async function reconcileRedirects(opts: ReconcileOptions): Promise<Reconc
           Key: key,
           WebsiteRedirectLocation: desired[key]!,
           ContentType: 'text/html',
-          Body: '',
+          Body: Buffer.from(''),
         }),
       );
     });
@@ -109,7 +109,7 @@ export async function applyRedirects(
         Key: entry.key,
         WebsiteRedirectLocation: entry.target,
         ContentType: 'text/html',
-        Body: '',
+        Body: Buffer.from(''),
       }),
     );
   });

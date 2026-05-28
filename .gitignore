@@ -10,3 +10,6 @@ demo/.astro/
 .env
 .env.*
 !.env.example
+
+test/fixtures/**/dist/
+test/fixtures/**/.manifest.json
