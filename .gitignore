@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.astro/
+demo/dist/
+demo/.astro/
+*.log
+.DS_Store
+.astro-s3-redirects.json
+.env
+.env.*
+!.env.example

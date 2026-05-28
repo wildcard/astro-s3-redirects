@@ -1,0 +1,74 @@
+{
+  "name": "astro-s3-redirects",
+  "version": "0.0.0",
+  "description": "Astro integration that turns Astro `redirects` + directory routes into real S3 301 object-redirects for AWS S3 website hosting — no Lambda@Edge, no CloudFront Functions, no extra AWS resources.",
+  "type": "module",
+  "license": "MIT",
+  "author": "wildcard",
+  "homepage": "https://github.com/wildcard/astro-s3-redirects#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wildcard/astro-s3-redirects.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wildcard/astro-s3-redirects/issues"
+  },
+  "keywords": [
+    "astro-integration",
+    "withastro",
+    "astro",
+    "aws",
+    "s3",
+    "cloudfront",
+    "redirects",
+    "static-site-generator"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
+    "release": "changeset publish"
+  },
+  "engines": {
+    "node": ">=18.14.1"
+  },
+  "peerDependencies": {
+    "astro": ">=4.0.0 <7.0.0",
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "comment": "Only needed for apply/reconcile modes; manifest mode (default) has zero AWS deps.",
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@changesets/cli": "^2.27.0",
+    "@types/node": "^20.14.0",
+    "astro": "^5.0.0",
+    "aws-sdk-client-mock": "^4.0.0",
+    "aws-sdk-client-mock-jest": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
