@@ -40,11 +40,12 @@ export default function s3Redirects(options: S3RedirectsOptions = {}): AstroInte
           return;
         }
 
+        const s3 = { bucket: cfg.bucket, prefix: cfg.prefix, distDir, region: cfg.region, concurrency: cfg.concurrency, endpoint: cfg.endpoint, forcePathStyle: cfg.forcePathStyle };
         if (cfg.mode === 'apply') {
-          const { put } = await applyRedirects({ bucket: cfg.bucket, prefix: cfg.prefix, distDir, region: cfg.region, concurrency: cfg.concurrency });
+          const { put } = await applyRedirects(s3);
           logger.info(`applied ${put} redirect objects → s3://${cfg.bucket}/${cfg.prefix}`);
         } else {
-          const r = await reconcileRedirects({ bucket: cfg.bucket, prefix: cfg.prefix, distDir, region: cfg.region, concurrency: cfg.concurrency, stateKey: cfg.stateKey });
+          const r = await reconcileRedirects({ ...s3, stateKey: cfg.stateKey });
           logger.info(`reconciled s3://${cfg.bucket}/${cfg.prefix}: +${r.created} ~${r.updated} -${r.deleted} =${r.unchanged} (state: ${r.stateKey})`);
         }
       },

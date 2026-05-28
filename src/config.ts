@@ -20,6 +20,10 @@ export const optionsSchema = z
     concurrency: z.number().int().positive().default(24),
     /** Override the remote state object key (reconcile mode). */
     stateKey: z.string().optional(),
+    /** Custom S3 endpoint for S3-compatible stores / local testing (e.g. LocalStack). */
+    endpoint: z.string().url().optional(),
+    /** Path-style addressing. Defaults to true when `endpoint` is set. */
+    forcePathStyle: z.boolean().optional(),
   })
   .default({});
 
@@ -34,21 +38,27 @@ export interface RuntimeConfig {
   manifestPath?: string;
   concurrency: number;
   stateKey?: string;
+  endpoint?: string;
+  forcePathStyle?: boolean;
 }
 
 type Env = Record<string, string | undefined>;
+const truthy = (v: string | undefined) => /^(1|true)$/i.test(v ?? '');
 
 /** Merge options with env (options win). `S3_REDIRECTS_APPLY` flips manifest→reconcile. */
 export function resolveRuntime(options: S3RedirectsOptions = {}, env: Env = process.env): RuntimeConfig {
   const o = optionsSchema.parse(options);
-  const applyFlag = /^(1|true)$/i.test(env.S3_REDIRECTS_APPLY ?? '');
+  const endpoint = o.endpoint ?? env.S3_REDIRECTS_ENDPOINT ?? env.AWS_ENDPOINT_URL_S3;
   return {
-    mode: options.mode ?? (applyFlag ? 'reconcile' : o.mode),
+    mode: options.mode ?? (truthy(env.S3_REDIRECTS_APPLY) ? 'reconcile' : o.mode),
     bucket: o.bucket ?? env.S3_REDIRECTS_BUCKET,
     prefix: o.prefix || env.S3_REDIRECTS_PREFIX || '',
     region: o.region ?? env.S3_REDIRECTS_REGION ?? env.AWS_REGION,
     manifestPath: o.manifestPath,
     concurrency: o.concurrency,
     stateKey: o.stateKey,
+    endpoint,
+    // path-style defaults on for custom endpoints (S3-compatible stores usually need it)
+    forcePathStyle: o.forcePathStyle ?? (endpoint ? !env.S3_REDIRECTS_FORCE_PATH_STYLE || truthy(env.S3_REDIRECTS_FORCE_PATH_STYLE) : undefined),
   };
 }

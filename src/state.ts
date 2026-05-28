@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3'; // type-only → erased at runtime
 
 export interface RedirectState {
   version: 1;
@@ -29,6 +29,7 @@ export class S3StateStore implements StateStore {
   ) {}
 
   async load(): Promise<RedirectState | null> {
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
     try {
       const r = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.key }));
       return JSON.parse(await r.Body!.transformToString()) as RedirectState;
@@ -40,6 +41,7 @@ export class S3StateStore implements StateStore {
   }
 
   async save(state: RedirectState): Promise<void> {
+    const { PutObjectCommand } = await import('@aws-sdk/client-s3');
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

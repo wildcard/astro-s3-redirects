@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3'; // type-only → erased at runtime
 import { planRedirects } from './plan.js';
 import { S3StateStore, stateKeyFor, type StateStore, type RedirectState } from './state.js';
 
@@ -21,10 +21,20 @@ export interface ReconcileOptions {
   concurrency?: number;
   stateKey?: string;
   dryRun?: boolean;
+  /** Custom S3 endpoint (S3-compatible stores / local testing). */
+  endpoint?: string;
+  /** Path-style addressing (usually required with a custom endpoint). */
+  forcePathStyle?: boolean;
   /** Override the S3 client (tests / custom credentials). */
   client?: S3Client;
   /** Override the state backend (tests use MemoryStateStore). */
   stateStore?: StateStore;
+}
+
+/** Lazily construct an S3 client so manifest mode never loads the AWS SDK. */
+async function makeClient(opts: { region?: string; endpoint?: string; forcePathStyle?: boolean }): Promise<S3Client> {
+  const { S3Client } = await import('@aws-sdk/client-s3');
+  return new S3Client({ region: opts.region, endpoint: opts.endpoint, forcePathStyle: opts.forcePathStyle });
 }
 
 export interface ReconcileResult {
@@ -44,7 +54,8 @@ export interface ReconcileResult {
  */
 export async function reconcileRedirects(opts: ReconcileOptions): Promise<ReconcileResult> {
   const { bucket, distDir, prefix = '', concurrency = 24, dryRun = false } = opts;
-  const client = opts.client ?? new S3Client({ region: opts.region });
+  const { PutObjectCommand, DeleteObjectsCommand } = await import('@aws-sdk/client-s3');
+  const client = opts.client ?? (await makeClient(opts));
   const stateKey = opts.stateKey ?? stateKeyFor(prefix);
   const store = opts.stateStore ?? new S3StateStore(client, bucket, stateKey);
 
@@ -65,30 +76,15 @@ export async function reconcileRedirects(opts: ReconcileOptions): Promise<Reconc
   if (!dryRun) {
     await pool(toPut, concurrency, async (key) => {
       await client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          WebsiteRedirectLocation: desired[key]!,
-          ContentType: 'text/html',
-          Body: Buffer.from(''),
-        }),
+        new PutObjectCommand({ Bucket: bucket, Key: key, WebsiteRedirectLocation: desired[key]!, ContentType: 'text/html', Body: Buffer.from('') }),
       );
     });
     for (let i = 0; i < toDelete.length; i += 1000) {
       await client.send(
-        new DeleteObjectsCommand({
-          Bucket: bucket,
-          Delete: { Objects: toDelete.slice(i, i + 1000).map((Key) => ({ Key })) },
-        }),
+        new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: toDelete.slice(i, i + 1000).map((Key) => ({ Key })) } }),
       );
     }
-    const next: RedirectState = {
-      version: 1,
-      bucket,
-      prefix,
-      updatedAt: new Date().toISOString(),
-      objects: desired,
-    };
+    const next: RedirectState = { version: 1, bucket, prefix, updatedAt: new Date().toISOString(), objects: desired };
     await store.save(next);
   }
 
@@ -100,17 +96,12 @@ export async function applyRedirects(
   opts: Omit<ReconcileOptions, 'stateStore' | 'stateKey' | 'dryRun'>,
 ): Promise<{ put: number }> {
   const { bucket, distDir, prefix = '', concurrency = 24 } = opts;
-  const client = opts.client ?? new S3Client({ region: opts.region });
+  const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+  const client = opts.client ?? (await makeClient(opts));
   const plan = planRedirects(distDir, prefix);
   await pool(plan, concurrency, async (entry) => {
     await client.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: entry.key,
-        WebsiteRedirectLocation: entry.target,
-        ContentType: 'text/html',
-        Body: Buffer.from(''),
-      }),
+      new PutObjectCommand({ Bucket: bucket, Key: entry.key, WebsiteRedirectLocation: entry.target, ContentType: 'text/html', Body: Buffer.from('') }),
     );
   });
   return { put: plan.length };
