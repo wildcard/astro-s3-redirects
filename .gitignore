@@ -13,3 +13,7 @@ demo/.astro/
 
 test/fixtures/**/dist/
 test/fixtures/**/.manifest.json
+
+demo/dist/
+demo/.astro/
+demo/.astro-s3-redirects.json

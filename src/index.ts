@@ -2,15 +2,15 @@ import type { AstroIntegration } from 'astro';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { optionsSchema, type S3RedirectsOptions } from './config.js';
+import { resolveRuntime, type S3RedirectsOptions } from './config.js';
 import { planRedirects } from './plan.js';
+import { applyRedirects, reconcileRedirects } from './reconcile.js';
 
 /**
  * astro-s3-redirects — materialize Astro `redirects` + directory routes as real
  * S3 301 object-redirects for AWS S3 website hosting. No edge compute.
  */
 export default function s3Redirects(options: S3RedirectsOptions = {}): AstroIntegration {
-  const opts = optionsSchema.parse(options);
   return {
     name: 'astro-s3-redirects',
     hooks: {
@@ -23,28 +23,39 @@ export default function s3Redirects(options: S3RedirectsOptions = {}): AstroInte
         }
       },
       'astro:build:done': async ({ dir, logger }) => {
+        const cfg = resolveRuntime(options);
         const distDir = fileURLToPath(dir);
-        // Manifest is prefix-less: the deploy layer applies a tenant prefix per site.
-        const plan = planRedirects(distDir, '');
-        const content = plan.filter((e) => e.kind === 'content').length;
-        const normalizers = plan.length - content;
 
-        if (opts.mode === 'manifest') {
-          const path = opts.manifestPath ?? join(process.cwd(), '.astro-s3-redirects.json');
+        if (cfg.mode === 'manifest') {
+          const plan = planRedirects(distDir, ''); // prefix-less: deploy layer applies the prefix
+          const content = plan.filter((e) => e.kind === 'content').length;
+          const path = cfg.manifestPath ?? join(process.cwd(), '.astro-s3-redirects.json');
           writeFileSync(path, JSON.stringify(plan, null, 2));
-          logger.info(
-            `wrote ${plan.length} redirect entries (${content} content, ${normalizers} normalizers) → ${path}`,
-          );
+          logger.info(`wrote ${plan.length} redirect entries (${content} content, ${plan.length - content} normalizers) → ${path}`);
           return;
         }
 
-        // apply / reconcile land in M2 (state-backed, mocked-S3 tested).
-        logger.warn(`mode="${opts.mode}" is not implemented yet (M2); no objects were written.`);
+        if (!cfg.bucket) {
+          logger.error(`mode="${cfg.mode}" requires a bucket (option \`bucket\` or env S3_REDIRECTS_BUCKET). Skipped.`);
+          return;
+        }
+
+        if (cfg.mode === 'apply') {
+          const { put } = await applyRedirects({ bucket: cfg.bucket, prefix: cfg.prefix, distDir, region: cfg.region, concurrency: cfg.concurrency });
+          logger.info(`applied ${put} redirect objects → s3://${cfg.bucket}/${cfg.prefix}`);
+        } else {
+          const r = await reconcileRedirects({ bucket: cfg.bucket, prefix: cfg.prefix, distDir, region: cfg.region, concurrency: cfg.concurrency, stateKey: cfg.stateKey });
+          logger.info(`reconciled s3://${cfg.bucket}/${cfg.prefix}: +${r.created} ~${r.updated} -${r.deleted} =${r.unchanged} (state: ${r.stateKey})`);
+        }
       },
     },
   };
 }
 
 export type { S3RedirectsOptions };
+export { resolveRuntime } from './config.js';
+export type { RuntimeConfig } from './config.js';
 export { planRedirects } from './plan.js';
 export type { RedirectPlanEntry, RedirectKind } from './plan.js';
+export { reconcileRedirects, applyRedirects } from './reconcile.js';
+export type { ReconcileOptions, ReconcileResult } from './reconcile.js';

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+        astro: ['^4', '^5']
+    name: node ${{ matrix.node }} · astro ${{ matrix.astro }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm install
+      - name: Pin Astro version for the matrix
+        run: npm install --no-save astro@${{ matrix.astro }}
+      - run: npm run typecheck
+      # The LocalStack E2E auto-skips when no S3 stack is reachable, so CI needs no Docker.
+      - run: npm test
+      - run: npm run build

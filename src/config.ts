@@ -25,3 +25,30 @@ export const optionsSchema = z
 
 export type S3RedirectsOptions = z.input<typeof optionsSchema>;
 export type ResolvedOptions = z.output<typeof optionsSchema>;
+
+export interface RuntimeConfig {
+  mode: 'manifest' | 'apply' | 'reconcile';
+  bucket?: string;
+  prefix: string;
+  region?: string;
+  manifestPath?: string;
+  concurrency: number;
+  stateKey?: string;
+}
+
+type Env = Record<string, string | undefined>;
+
+/** Merge options with env (options win). `S3_REDIRECTS_APPLY` flips manifest→reconcile. */
+export function resolveRuntime(options: S3RedirectsOptions = {}, env: Env = process.env): RuntimeConfig {
+  const o = optionsSchema.parse(options);
+  const applyFlag = /^(1|true)$/i.test(env.S3_REDIRECTS_APPLY ?? '');
+  return {
+    mode: options.mode ?? (applyFlag ? 'reconcile' : o.mode),
+    bucket: o.bucket ?? env.S3_REDIRECTS_BUCKET,
+    prefix: o.prefix || env.S3_REDIRECTS_PREFIX || '',
+    region: o.region ?? env.S3_REDIRECTS_REGION ?? env.AWS_REGION,
+    manifestPath: o.manifestPath,
+    concurrency: o.concurrency,
+    stateKey: o.stateKey,
+  };
+}
