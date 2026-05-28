@@ -1,6 +1,7 @@
 # astro-s3-redirects
 
 [![npm](https://img.shields.io/npm/v/astro-s3-redirects.svg)](https://www.npmjs.com/package/astro-s3-redirects)
+[![CI](https://github.com/wildcard/astro-s3-redirects/actions/workflows/ci.yml/badge.svg)](https://github.com/wildcard/astro-s3-redirects/actions/workflows/ci.yml)
 [![astro-integration](https://img.shields.io/badge/astro-integration-FF5D01)](https://astro.build/integrations/)
 
 > Turn Astro's `redirects` (and directory routes) into **real S3 `301` object-redirects**

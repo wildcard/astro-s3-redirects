@@ -23,6 +23,41 @@ jobs:
       - name: Pin Astro version for the matrix
         run: npm install --no-save astro@${{ matrix.astro }}
       - run: npm run typecheck
-      # The LocalStack E2E auto-skips when no S3 stack is reachable, so CI needs no Docker.
+      # The LocalStack E2Es auto-skip when no S3 stack is reachable, so this job needs no Docker.
       - run: npm test
       - run: npm run build
+
+  e2e:
+    name: e2e (LocalStack S3)
+    runs-on: ubuntu-latest
+    services:
+      localstack:
+        image: localstack/localstack:3.0.2
+        ports: ['4566:4566']
+        env:
+          SERVICES: s3
+        options: >-
+          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Wait for LocalStack S3
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4566/_localstack/health | grep -q '"s3"' && exit 0
+            sleep 2
+          done
+          echo "LocalStack S3 not ready" >&2; exit 1
+      # The real technique, end to end: scaffold a fresh Astro site, install this
+      # plugin, build, deploy to LocalStack, assert real 301s + static 200s.
+      - name: Full E2E
+        run: RUN_FULL_E2E=1 npm test
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_REGION: us-east-1
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required

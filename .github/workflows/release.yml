@@ -7,9 +7,9 @@ on:
 concurrency: release-${{ github.ref }}
 
 permissions:
-  contents: write
-  pull-requests: write
-  id-token: write # npm provenance
+  contents: write # tag + create GitHub Releases
+  pull-requests: write # open/update the "Version Packages" PR
+  id-token: write # npm provenance (OIDC)
 
 jobs:
   release:
@@ -20,13 +20,19 @@ jobs:
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
-      - run: npm install
+      - run: npm ci
+      # Tests gate the publish: the exact commit on main must be green before release.
+      - run: npm run typecheck
+      - run: npm test # LocalStack E2Es auto-skip (no Docker here)
       - run: npm run build
-      # Opens/updates a "Version Packages" PR from changesets; on merge, publishes to npm.
+      # Changesets: with pending changesets → open/update the "Version Packages" PR.
+      # When that PR merges (no pending changesets) → version bump, CHANGELOG,
+      # git tag, GitHub Release, and npm publish (with provenance).
       - uses: changesets/action@v1
         with:
-          publish: npm run release
           version: npx changeset version
+          publish: npm run release
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
